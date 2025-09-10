@@ -3,3 +3,4 @@ uvicorn[standard]>=0.29.0
 yt-dlp>=2025.8.1
 setuptools>=69.0.3
 wheel>=0.43.0
+pydantic>=2.5.1
