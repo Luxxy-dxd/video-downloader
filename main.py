@@ -7,14 +7,23 @@ app = FastAPI(title="FB & Instagram Video API")
 def get_video_info(url: str):
     ydl_opts = {
         "quiet": True,
-        "skip_download": True
+        "skip_download": True,
+        "force_generic_extractor": True  # fallback extractor
     }
+
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)
+        
+        # Try to get the actual video URL
+        video_url = info.get("url")
+        if not video_url and info.get("requested_formats"):
+            # Pick the first available format
+            video_url = info["requested_formats"][0].get("url")
+
         return {
             "title": info.get("title"),
             "thumbnail": info.get("thumbnail"),
-            "url": info.get("url"),
+            "url": video_url,
             "duration": info.get("duration")
         }
 
