@@ -1,7 +1,7 @@
 import os
 import uuid
 from fastapi import FastAPI, Query
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import yt_dlp
 
@@ -41,11 +41,12 @@ def download_video_audio(url: str):
         audio_file = ydl.prepare_filename(info_audio)
         ydl.download([url])
 
+    # Return direct file paths
     return {
         "title": info.get("title"),
         "thumbnail": info.get("thumbnail"),
-        "video_url": video_file,
-        "audio_url": audio_file,
+        "video_url": f"/video-file?file_path={video_file}",
+        "audio_url": f"/video-file?file_path={audio_file}",
         "duration": info.get("duration")
     }
 
@@ -56,8 +57,6 @@ def download_video_audio(url: str):
 async def video_info(url: str = Query(...)):
     try:
         data = download_video_audio(url)
-        if not data["video_url"] and not data["audio_url"]:
-            return JSONResponse({"error": "Video or audio URL not found"}, status_code=400)
         return JSONResponse(data)
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=400)
@@ -72,8 +71,6 @@ class VideoRequest(BaseModel):
 async def video_info_post(req: VideoRequest):
     try:
         data = download_video_audio(req.url)
-        if not data["video_url"] and not data["audio_url"]:
-            return JSONResponse({"error": "Video or audio URL not found"}, status_code=400)
         return JSONResponse(data)
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=400)
@@ -81,10 +78,12 @@ async def video_info_post(req: VideoRequest):
 # ----------------------------
 # Serve video files
 # ----------------------------
+from fastapi.responses import FileResponse
+
 @app.get("/video-file")
 async def get_video_file(file_path: str):
     if os.path.exists(file_path):
-        return FileResponse(file_path)
+        return FileResponse(file_path, media_type='application/octet-stream')
     return JSONResponse({"error": "File not found"}, status_code=404)
 
 # ----------------------------
@@ -93,17 +92,3 @@ async def get_video_file(file_path: str):
 @app.get("/")
 def root():
     return {"status": "ok", "message": "FB & Instagram Video API running 🚀"}
-# Endpoint to download merged video file
-@app.get("/download")
-async def download_video(url: str = Query(...), format_id: str = Query(None)):
-    try:
-        file_path = download_and_merge_video(url, format_id)
-        if file_path and os.path.exists(file_path):
-            return FileResponse(file_path, media_type="video/mp4", filename=os.path.basename(file_path))
-        return JSONResponse({"error": "Failed to generate video"}, status_code=400)
-    except Exception as e:
-        return JSONResponse({"error": str(e)}, status_code=400)
-
-@app.get("/")
-def root():
-    return {"status": "ok", "message": "Advanced Video Downloader API running 🚀"}
