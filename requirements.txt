@@ -1,0 +1,27 @@
+fastapi>=0.110.0
+uvicorn>=0.29.0
+
+# YouTube
+pytube>=15.0.0
+
+# Instagram
+instaloader>=4.13
+
+# TikTok
+TikTokApi>=0.11.10
+
+# Twitter/X
+snscrape>=0.7.0.20230622
+
+# Reddit (requires API keys)
+praw>=7.7.1
+
+# Facebook
+facebook-scraper>=0.2.59
+
+# Greenlet fix (use latest stable for Py 3.12+)
+greenlet>=3.0.3
+
+# Helpers
+setuptools>=69.0.3
+wheel>=0.43.0
