@@ -19,9 +19,8 @@ praw>=7.7.1
 # Facebook
 facebook-scraper>=0.2.59
 
-# Greenlet fix (use latest stable for Py 3.12+)
-greenlet>=3.0.3
+# For Python 3.13: install greenlet from GitHub
+git+https://github.com/python-greenlet/greenlet.git
 
-# Helpers
 setuptools>=69.0.3
 wheel>=0.43.0
