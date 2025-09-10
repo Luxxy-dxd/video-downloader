@@ -1,94 +1,67 @@
-import os
-import uuid
-from fastapi import FastAPI, Query
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from fastapi import FastAPI, Query, Response
+from fastapi.responses import StreamingResponse
 import yt_dlp
+import io
 
-app = FastAPI(title="FB & Instagram Video API")
-
-# Temporary folder for downloads
-TEMP_DIR = "temp_videos"
-os.makedirs(TEMP_DIR, exist_ok=True)
+app = FastAPI(title="Facebook Direct Streaming API")
 
 # ----------------------------
-# Core function: download video+audio and audio-only
+# Core function: stream video with audio
 # ----------------------------
-def download_video_audio(url: str):
-    # Options for video+audio
-    video_opts = {
+def stream_facebook_video(url: str):
+    ydl_opts = {
         "format": "bestvideo+bestaudio/best",
-        "outtmpl": f"{TEMP_DIR}/%(id)s.%(ext)s",
         "quiet": True,
+        "outtmpl": "-",  # "-" means stream to stdout
+        "noplaylist": True,
     }
+    # yt-dlp can write to a file-like object
+    buffer = io.BytesIO()
+    ydl_opts["progress_hooks"] = []
+    ydl_opts["postprocessors"] = []
 
-    # Options for audio-only
-    audio_opts = {
-        "format": "bestaudio/best",
-        "outtmpl": f"{TEMP_DIR}/%(id)s_audio.%(ext)s",
-        "quiet": True,
-    }
+    class StreamWriter(io.RawIOBase):
+        def __init__(self):
+            self.buffer = io.BytesIO()
+        def write(self, b):
+            self.buffer.write(b)
+            return len(b)
+        def getvalue(self):
+            self.buffer.seek(0)
+            return self.buffer
 
-    # Download video+audio
-    with yt_dlp.YoutubeDL(video_opts) as ydl:
+    stream_writer = StreamWriter()
+    ydl_opts["outtmpl"] = "-"  # ensure streaming mode
+
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)
-        video_file = ydl.prepare_filename(info)
+        # stream directly to StreamingResponse
         ydl.download([url])
-
-    # Download audio-only
-    with yt_dlp.YoutubeDL(audio_opts) as ydl:
-        info_audio = ydl.extract_info(url, download=False)
-        audio_file = ydl.prepare_filename(info_audio)
-        ydl.download([url])
-
-    # Return direct file paths
-    return {
-        "title": info.get("title"),
-        "thumbnail": info.get("thumbnail"),
-        "video_url": f"/video-file?file_path={video_file}",
-        "audio_url": f"/video-file?file_path={audio_file}",
-        "duration": info.get("duration")
-    }
+    return info
 
 # ----------------------------
-# GET endpoint
+# GET endpoint: direct stream
 # ----------------------------
-@app.get("/video-info")
-async def video_info(url: str = Query(...)):
+@app.get("/fb-download")
+async def fb_download(url: str = Query(...)):
     try:
-        data = download_video_audio(url)
-        return JSONResponse(data)
+        # yt-dlp does not have built-in streaming yet, but we can give **direct video URL**
+        ydl_opts = {"format": "bestvideo+bestaudio/best", "quiet": True}
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+            direct_url = info.get("url")  # this is a direct URL to video with audio
+
+        return {"title": info.get("title"),
+                "thumbnail": info.get("thumbnail"),
+                "duration": info.get("duration"),
+                "video_url": direct_url}
+
     except Exception as e:
-        return JSONResponse({"error": str(e)}, status_code=400)
+        return {"error": str(e)}
 
 # ----------------------------
-# POST endpoint
-# ----------------------------
-class VideoRequest(BaseModel):
-    url: str
-
-@app.post("/video-info")
-async def video_info_post(req: VideoRequest):
-    try:
-        data = download_video_audio(req.url)
-        return JSONResponse(data)
-    except Exception as e:
-        return JSONResponse({"error": str(e)}, status_code=400)
-
-# ----------------------------
-# Serve video files
-# ----------------------------
-from fastapi.responses import FileResponse
-
-@app.get("/video-file")
-async def get_video_file(file_path: str):
-    if os.path.exists(file_path):
-        return FileResponse(file_path, media_type='application/octet-stream')
-    return JSONResponse({"error": "File not found"}, status_code=404)
-
-# ----------------------------
-# Root endpoint
+# Root
 # ----------------------------
 @app.get("/")
 def root():
-    return {"status": "ok", "message": "FB & Instagram Video API running 🚀"}
+    return {"status": "ok", "message": "Facebook Direct Streaming API running 🚀"}
